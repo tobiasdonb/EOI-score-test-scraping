@@ -1,0 +1,21 @@
+# Mengabaikan folder hasil unduhan/data scraper
+DATASET/
+*.csv
+*.xlsx
+*.crdownload
+*.tmp
+
+# Mengabaikan folder Virtual Environment Python
+venv/
+env/
+.venv/
+
+# Mengabaikan file cache bawaan Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Mengabaikan file sistem (Mac/Windows)
+.DS_Store
+Thumbs.db
