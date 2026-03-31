@@ -9,6 +9,7 @@ DATASET_SCORE_TEST_EOI/
 venv/
 env/
 .venv/
+eoi_venv/
 
 # Mengabaikan file cache bawaan Python
 __pycache__/
