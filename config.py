@@ -9,7 +9,11 @@ URL = "https://api.dynamic.reports.employment.gov.au/anonap/extensions/hSKLS02_S
 
 HEADLESS = False
 
-MONTHS = ['01/2026', '02/2026', '03/2026'] 
+# Range bulan yang ingin di-scrape (format: 'MM/YYYY')
+# Scraper akan memproses dari END_MONTH (terbaru) mundur ke START_MONTH (terlama)
+START_MONTH = '01/2025'  # Bulan terlama
+END_MONTH   = '10/2025'  # Bulan terbaru
+
 STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA']
 SCORES = ['0', '10', '20'] # 5 tidak dimasukkan sesuai permintaan
 

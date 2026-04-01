@@ -95,7 +95,34 @@ class SkillSelectScraper:
         except Exception as e:
             print(f"❌ Gagal menggunakan Smart Search: {e}")
 
+    def get_current_selection_text(self, xpath):
+        """
+        Baca teks/title yang sedang aktif pada pill 'Current Selections' (misalnya 'As At Month')
+        TANPA harus membuka listbox terlebih dahulu.
+        Mengembalikan string nilai yang terpilih, atau None jika tidak ada.
+        """
+        try:
+            # Coba ambil dari atribut 'title' pada elemen pill
+            el = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
+            title = el.get_attribute("title")
+            if title and title.strip():
+                clean_val = title.strip().split('\n')[-1].strip()
+                print(f"📖 Terbaca dari pill (title): '{clean_val}'")
+                return clean_val
+            # Fallback: ambil dari teks inner span
+            text = el.text.strip()
+            if text:
+                clean_val = text.strip().split('\n')[-1].strip()
+                print(f"📖 Terbaca dari pill (text): '{clean_val}'")
+                return clean_val
+            return None
+
+        except Exception as e:
+            print(f"⚠️ Tidak dapat membaca current selection: {e}")
+            return None
+
     def get_available_months(self):
+
         print("Membaca daftar bulan untuk mencari data terbaru...")
         try:
             scroll_container = self.wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'ListBox-styledScrollbars')]")))
@@ -122,6 +149,72 @@ class SkillSelectScraper:
         except Exception as e:
             return []
 
+    def uncheck_selected_rows(self, exclude=None):
+        """Uncheck semua row yang sedang tercentang, kecuali yang ada di 'exclude'."""
+        try:
+            print(f"🔄 Memulai uncheck mendalam (Target Tetap: '{exclude}')...")
+            
+            # --- 1. Paksa Kosongkan Search Box ---
+            try:
+                search_boxes = self.driver.find_elements(By.XPATH, config.XPATH_SEARCH_LISTBOX)
+                if search_boxes:
+                    sb = search_boxes[0]
+                    self.driver.execute_script("arguments[0].value = '';", sb)
+                    sb.send_keys(Keys.ENTER) # Trigger refresh
+                    print("✅ Search box dikosongkan.")
+                    time.sleep(1.5)
+            except: pass
+
+            # --- 2. Inisialisasi Scroll ---
+            try:
+                scroll_container = self.wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'ListBox-styledScrollbars')]")))
+            except:
+                scroll_container = None
+
+            last_scroll_pos = -1
+            processed_titles = set()
+            uncheck_count = 0
+            
+            # --- 3. Looping Scroll & Uncheck ---
+            for _ in range(12): # Max 12 scrolls
+                xpath_selected = "//div[@role='row' and (@aria-selected='true' or .//i[contains(@class, 'lui-icon--tick')])]"
+                current_selected = self.driver.find_elements(By.XPATH, xpath_selected)
+                
+                for row in current_selected:
+                    try:
+                        title_el = row.find_element(By.XPATH, ".//div[contains(@class, 'RowColumn-cell') and @title]")
+                        title = title_el.get_attribute("title").strip()
+                        
+                        if title in processed_titles: continue
+                        processed_titles.add(title)
+
+                        if exclude and title == exclude.strip():
+                            print(f"  ⏭️ Skip (ingin tetap tercentang): '{title}'")
+                            continue
+                        
+                        print(f"  ✅ Melakukan UNCHECK pada: '{title}'")
+                        # Klik spesifik pada element title agar lebih akurat di Qlik
+                        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", title_el)
+                        time.sleep(0.3)
+                        self.driver.execute_script("arguments[0].click();", title_el)
+                        uncheck_count += 1
+                        time.sleep(0.5)
+                    except: continue
+
+                if not scroll_container: break
+                
+                self.driver.execute_script("arguments[0].scrollTop += 350;", scroll_container)
+                time.sleep(0.8)
+                curr_pos = self.driver.execute_script("return arguments[0].scrollTop;", scroll_container)
+                if curr_pos == last_scroll_pos: break
+                last_scroll_pos = curr_pos
+
+            print(f"🎉 Selesai. Total item di-uncheck: {uncheck_count}")
+            time.sleep(1.2)
+                
+        except Exception as e:
+            print(f"❌ Gagal uncheck: {e}")
+
     def search_and_select_item(self, item_text, action_name="Item"):
         try:
             search_box = self.wait.until(EC.element_to_be_clickable((By.XPATH, config.XPATH_SEARCH_LISTBOX)))
@@ -130,7 +223,7 @@ class SkillSelectScraper:
             search_box.send_keys(Keys.BACKSPACE)
             time.sleep(0.5)
             search_box.send_keys(item_text)
-            time.sleep(1.5) 
+            time.sleep(1.0) 
             
             xpath_target = config.XPATH_DROPDOWN_ROW.format(item_text)
             row_element = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath_target)))
@@ -146,6 +239,36 @@ class SkillSelectScraper:
         except Exception as e:
             print(f"❌ Gagal mencari {item_text}: {e}")
 
+    def search_and_unselect_item(self, item_text, action_name="Item"):
+        if not item_text:
+            return
+        print(f"🔄 Menggunakan Search Explicit untuk UNCHECK: '{item_text}'")
+        try:
+            search_box = self.wait.until(EC.element_to_be_clickable((By.XPATH, config.XPATH_SEARCH_LISTBOX)))
+            self.driver.execute_script("arguments[0].value = '';", search_box)
+            search_box.send_keys(Keys.CONTROL + "a")
+            search_box.send_keys(Keys.BACKSPACE)
+            time.sleep(0.5)
+            
+            search_box.send_keys(item_text)
+            time.sleep(1.5) 
+            
+            xpath_target = config.XPATH_DROPDOWN_ROW.format(item_text)
+            row_element = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath_target)))
+            
+            ticks = row_element.find_elements(By.XPATH, ".//i[contains(@class, 'lui-icon--tick')]")
+            is_selected = row_element.get_attribute("aria-selected") == "true"
+            
+            if ticks or is_selected:
+                print(f"  🔍 Ditemukan {item_text} dalam keadaan tercentang, mengeklik untuk uncheck...")
+                self.click_element(xpath_target, action_name)
+                time.sleep(0.5)
+            else:
+                print(f"  ℹ️ {item_text} sudah TIDAK tercentang.")
+                
+        except Exception as e:
+            print(f"❌ Gagal mencari & unselect {item_text}: {e}")
+
     def export_table_data(self):
         try:
             print("Mencari sel tabel untuk di-klik kanan...")
@@ -154,16 +277,28 @@ class SkillSelectScraper:
             self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", table_cell)
             time.sleep(1)
             
-            print("Melakukan klik kanan pada tabel...")
-            actions = ActionChains(self.driver)
-            actions.context_click(table_cell).perform()
-            time.sleep(1.5)
-            
-            if not self.driver.find_elements(By.XPATH, config.XPATH_EXPORT_DATA):
-                print("⚠️ Menu belum terbuka, mencoba klik kanan dengan JS...")
-                self.driver.execute_script("arguments[0].dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, cancelable: true, view: window}));", table_cell)
-                time.sleep(1.5)
-            
+            # Mencoba klik kanan sampai menu muncul (max 3 kali)
+            menu_opened = False
+            for attempt in range(3):
+                print(f"Melakukan klik kanan pada tabel (Percobaan {attempt+1})...")
+                actions = ActionChains(self.driver)
+                actions.context_click(table_cell).perform()
+                time.sleep(2)
+                
+                if self.driver.find_elements(By.XPATH, config.XPATH_EXPORT_DATA):
+                    menu_opened = True
+                    break
+                else:
+                    print("⚠️ Menu belum terbuka, mencoba klik kanan dengan JS...")
+                    self.driver.execute_script("arguments[0].dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, cancelable: true, view: window}));", table_cell)
+                    time.sleep(2)
+                    if self.driver.find_elements(By.XPATH, config.XPATH_EXPORT_DATA):
+                        menu_opened = True
+                        break
+
+            if not menu_opened:
+                raise Exception("Gagal membuka menu konteks (Export data) setelah 3 percobaan.")
+
             print("Mengeklik pilihan 'Export data'...")
             export_menu = self.wait.until(EC.element_to_be_clickable((By.XPATH, config.XPATH_EXPORT_DATA)))
             try:
