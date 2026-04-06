@@ -119,7 +119,8 @@ class SkillSelectScraper:
                     break 
                 last_scroll_position = current_scroll_position
 
-            months = list(months_set)
+            # Filter hanya untuk tahun 2025 dan 2026 sesuai permintaan
+            months = [m for m in months_set if any(year in m for year in ['2025', '2026'])]
             months.sort(key=lambda x: (int(x.split('/')[1]), int(x.split('/')[0])), reverse=True)
 
             print(f"✅ Berhasil mengekstrak {len(months)} bulan: {months}")

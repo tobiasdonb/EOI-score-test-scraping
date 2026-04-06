@@ -7,10 +7,14 @@ BASE_DIR = os.getcwd()
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "DATASET")
 URL = "https://api.dynamic.reports.employment.gov.au/anonap/extensions/hSKLS02_SkillSelect_EOI_Data/hSKLS02_SkillSelect_EOI_Data.html"
 
-HEADLESS = True  # Ubah ke False jika ingin melihat browser berjalan
+HEADLESS = False  # Ubah ke False jika ingin melihat browser berjalan
 
 # Fallback/Cadangan list bulan jika ekstraksi dinamis di web Qlik gagal
-MONTHS = ['01/2026', '02/2026', '03/2026'] 
+MONTHS = [
+    '01/2025', '02/2025', '03/2025', '04/2025', '05/2025', '06/2025',
+    '07/2025', '08/2025', '09/2025', '10/2025', '11/2025', '12/2025',
+    '01/2026', '02/2026', '03/2026'
+] 
 STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA']
 
 # ==========================================
