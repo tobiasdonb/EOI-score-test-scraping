@@ -113,7 +113,6 @@ class SkillSelectScraper:
 
                 self.driver.execute_script("arguments[0].scrollTop += 200;", scroll_container)
                 time.sleep(0.5) 
-
                 current_scroll_position = self.driver.execute_script("return arguments[0].scrollTop;", scroll_container)
                 if current_scroll_position == last_scroll_position:
                     break 
