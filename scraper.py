@@ -11,20 +11,32 @@ from selenium.webdriver.common.keys import Keys
 import config
 
 class SkillSelectScraper:
-    def __init__(self):
+    def __init__(self, worker_id=0):
+        self.worker_id = worker_id
+        self.log_prefix = f"[W{worker_id}]"
+        
+        # Setiap worker punya folder download sendiri agar file tidak bertabrakan
+        self.worker_download_dir = os.path.join(config.DOWNLOAD_DIR, f"_worker_{worker_id}_tmp")
+        if not os.path.exists(self.worker_download_dir):
+            os.makedirs(self.worker_download_dir)
         if not os.path.exists(config.DOWNLOAD_DIR):
             os.makedirs(config.DOWNLOAD_DIR)
+            
         self.driver = self._setup_driver()
         self.wait = WebDriverWait(self.driver, 20)
+
+    def _log(self, msg):
+        """Print dengan prefix worker ID."""
+        print(f"{self.log_prefix} {msg}")
 
     def _setup_driver(self):
         options = webdriver.ChromeOptions()
         if config.HEADLESS:
-            print("🚀 Menjalankan Chrome dalam mode HEADLESS...")
+            self._log("🚀 Menjalankan Chrome dalam mode HEADLESS...")
             options.add_argument('--headless=new')
             options.add_argument('--window-size=1920,1080')
         else:
-            print("🖥️ Menjalankan Chrome dalam mode VISUAL...")
+            self._log("🖥️ Menjalankan Chrome dalam mode VISUAL...")
         
         options.add_argument('--start-maximized')
         options.page_load_strategy = 'eager' 
@@ -32,7 +44,7 @@ class SkillSelectScraper:
         options.add_experimental_option('useAutomationExtension', False)
         
         prefs = {
-            "download.default_directory": config.DOWNLOAD_DIR,
+            "download.default_directory": self.worker_download_dir,
             "download.prompt_for_download": False,
             "directory_upgrade": True,
             "safebrowsing.enabled": True,
@@ -344,7 +356,7 @@ class SkillSelectScraper:
         return len(glob.glob(search_pattern)) > 0
 
     def wait_and_rename_file(self, filename_prefix, state_name=None, english_score=None): 
-        print("Menunggu file selesai diunduh...")
+        self._log("Menunggu file selesai diunduh...")
         timeout = 180 
         start_time = time.time()
         
@@ -354,7 +366,8 @@ class SkillSelectScraper:
             os.makedirs(target_dir)
 
         while True:
-            files = os.listdir(config.DOWNLOAD_DIR)
+            # Cari di folder worker sendiri
+            files = os.listdir(self.worker_download_dir)
             if any(f.endswith('.crdownload') or f.endswith('.tmp') for f in files):
                 time.sleep(1)
             else:
@@ -363,8 +376,10 @@ class SkillSelectScraper:
             if time.time() - start_time > timeout:
                 return
 
-        list_of_files = glob.glob(os.path.join(config.DOWNLOAD_DIR, '*.xlsx'))
-        if not list_of_files: return
+        list_of_files = glob.glob(os.path.join(self.worker_download_dir, '*.xlsx'))
+        if not list_of_files: 
+            self._log("⚠️ Tidak ada file .xlsx ditemukan di folder download worker!")
+            return
             
         latest_file = max(list_of_files, key=os.path.getctime)
         new_name = f"{filename_prefix}_{int(time.time())}.csv"
@@ -379,10 +394,10 @@ class SkillSelectScraper:
                 df['State'] = state_name
                 
             df.to_csv(new_path, index=False)
-            print(f"✅ Disimpan ke sub-folder: {new_path}")
+            self._log(f"✅ Berhasil di-convert dan simpan ke: {new_name}")
             os.remove(latest_file)
         except Exception as e:
-            print(f"❌ Gagal memanipulasi file Pandas: {e}")
+            self._log(f"❌ Gagal memanipulasi file Pandas: {e}")
 
     def close_browser(self):
         self.driver.quit()

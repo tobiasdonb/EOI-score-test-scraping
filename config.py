@@ -9,10 +9,13 @@ URL = "https://api.dynamic.reports.employment.gov.au/anonap/extensions/hSKLS02_S
 
 HEADLESS = False
 
+# Jumlah worker paralel (jumlah browser yang dibuka bersamaan)
+MAX_WORKERS = 3
+
 # Range bulan yang ingin di-scrape (format: 'MM/YYYY')
 # Scraper akan memproses dari END_MONTH (terbaru) mundur ke START_MONTH (terlama)
 START_MONTH = '01/2025'  # Bulan terlama
-END_MONTH   = '10/2025'  # Bulan terbaru
+END_MONTH   = '12/2025'  # Bulan terbaru
 
 STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA']
 SCORES = ['0', '10', '20'] # 5 tidak dimasukkan sesuai permintaan
@@ -27,6 +30,7 @@ XPATH_BTN_NEXT = "//a[@data-qcmd='navNext']"
 # --- SETTING PARAMETER (YES/NO) ---
 XPATH_BTN_YES_OCCUPATION = "//div[contains(@class, 'qsc-root') and .//span[@title='Occupations']]//button[@data-value='Y']"
 XPATH_BTN_YES_POINTS = "//div[contains(@class, 'qsc-root') and .//span[contains(@title, 'Point')]]//button[@data-value='Y']"
+XPATH_BTN_NO_POINTS = "//div[contains(@class, 'qsc-root') and .//span[contains(@title, 'Point')]]//button[@data-value='N']"
 
 # --- FILTER GLOBAL ---
 XPATH_DROPDOWN_SELECT = "//button[@data-testid='filterpane-expand-button']"
@@ -40,6 +44,8 @@ XPATH_VISA_491_ST = "//div[@role='row' and .//div[@title='491SNR State or Territ
 XPATH_EOI_SUBMITTED = "//div[@role='row' and .//div[@title='SUBMITTED']]"
 XPATH_EOI_INVITED = "//div[@role='row' and .//div[@title='INVITED']]"
 XPATH_EOI_LODGED = "//div[@role='row' and .//div[@title='LODGED']]"
+XPATH_EOI_CLOSED = "//div[@role='row' and .//div[@title='CLOSED']]"
+XPATH_EOI_HOLD= "//div[@role='row' and .//div[@title='HOLD']]"
 
 XPATH_ACTION_CONFIRM = "//button[@data-testid='actions-toolbar-confirm']"
 
