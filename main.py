@@ -150,7 +150,7 @@ def worker_routine(worker_id, tasks):
             for state in config.STATES:
                 safe_name = f"EOI_{state}_SCORE_{score}_{month.replace('/', '_')}"
                 
-                if bot.check_file_exists(safe_name, month_folder=month): 
+                if bot.check_file_exists(safe_name, english_score=score):
                     bot._log(f"⏭️ {state} skip - File exist.")
                     continue
 
@@ -179,7 +179,7 @@ def worker_routine(worker_id, tasks):
                 # Download
                 bot.switch_to_dashboard_iframe()
                 bot.export_table_data()
-                bot.wait_and_rename_file(safe_name, state_name=state, english_score=score, month_folder=month)
+                bot.wait_and_rename_file(safe_name, state_name=state, english_score=score)
                 bot.close_export_dialog()
                 time.sleep(0.5)
 
