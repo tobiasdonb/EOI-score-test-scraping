@@ -31,14 +31,17 @@ class SkillSelectScraper:
 
     def _setup_driver(self):
         options = webdriver.ChromeOptions()
+ 
         if config.HEADLESS:
             self._log("🚀 Menjalankan Chrome dalam mode HEADLESS...")
             options.add_argument('--headless=new')
-            options.add_argument('--window-size=1920,1080')
+            options.add_argument('--window-size=1920,1080') # Tetap butuh ukuran layar agar UI tidak rusak
         else:
             self._log("🖥️ Menjalankan Chrome dalam mode VISUAL...")
         
         options.add_argument('--start-maximized')
+        
+        # Mode Eager agar langsung jalan tanpa menunggu background loading Qlik
         options.page_load_strategy = 'eager' 
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
@@ -48,11 +51,13 @@ class SkillSelectScraper:
             "download.prompt_for_download": False,
             "directory_upgrade": True,
             "safebrowsing.enabled": True,
-            "profile.managed_default_content_settings.images": 2 
+            "profile.managed_default_content_settings.images": 2 # Mematikan gambar agar ngebut
         }
         options.add_experimental_option("prefs", prefs)
         
         driver = webdriver.Chrome(options=options)
+        
+        # Bypass Anti-Bot
         driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
             "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         })
@@ -82,30 +87,25 @@ class SkillSelectScraper:
             actions.move_to_element(element).click().perform()
             print(f"✅ Klik: {action_name}")
             time.sleep(0.5) 
+            
         except Exception as e:
+            print(f"⚠️ ActionChains gagal pada {action_name}. Mencoba injeksi MouseEvent JS...")
             if element:
-                self.driver.execute_script("arguments[0].click();", element)
-                print(f"✅ Klik (JS): {action_name}")
-                time.sleep(0.5)
-
-    def use_smart_search(self, keyword):
-        print(f"🔍 Menggunakan Smart Search untuk: {keyword}")
-        try:
-            self.click_element(config.XPATH_SMART_SEARCH_BTN, "Tombol Smart Search")
-            time.sleep(0.5)
-
-            search_input = self.wait.until(EC.presence_of_element_located((By.XPATH, config.XPATH_SMART_SEARCH_INPUT)))
-            search_input.clear()
-            search_input.send_keys(keyword)
-            time.sleep(1) 
-
-            self.click_element(config.XPATH_SMART_SEARCH_FIRST_RESULT, "Hasil Pencarian Pertama (Smart Search)")
-            time.sleep(1)
-
-            ActionChains(self.driver).send_keys(Keys.ESCAPE).perform()
-            print(f"✅ Berhasil menanam State '{keyword}' dari Smart Search.")
-        except Exception as e:
-            print(f"❌ Gagal menggunakan Smart Search: {e}")
+                try:
+                    self.driver.execute_script("""
+                        var evt = new MouseEvent('mousedown', {bubbles: true, cancelable: true, view: window});
+                        arguments[0].dispatchEvent(evt);
+                        var evt2 = new MouseEvent('mouseup', {bubbles: true, cancelable: true, view: window});
+                        arguments[0].dispatchEvent(evt2);
+                        var evt3 = new MouseEvent('click', {bubbles: true, cancelable: true, view: window});
+                        arguments[0].dispatchEvent(evt3);
+                    """, element)
+                    print(f"✅ Klik (JS MouseEvent): {action_name}")
+                    time.sleep(0.5)
+                except Exception as js_e:
+                    print(f"❌ Alternatif JS gagal: {js_e}")
+            else:
+                print(f"❌ {action_name} tidak ditemukan di layar! (Timeout)")
 
     def get_current_selection_text(self, xpath):
         """
@@ -134,10 +134,11 @@ class SkillSelectScraper:
             return None
 
     def get_available_months(self):
-
-        print("Membaca daftar bulan untuk mencari data terbaru...")
+        self._log("Mencari dan membaca seluruh daftar bulan (Scrolling otomatis)...")
         try:
             scroll_container = self.wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'ListBox-styledScrollbars')]")))
+            time.sleep(1)
+
             months_set = set() 
             last_scroll_position = -1
 
@@ -155,16 +156,22 @@ class SkillSelectScraper:
                     break 
                 last_scroll_position = current_scroll_position
 
-            months = list(months_set)
+            # Filter hanya untuk tahun 2025 dan 2026 sesuai permintaan
+            months = [m for m in months_set if any(year in m for year in ['2025', '2026'])]
             months.sort(key=lambda x: (int(x.split('/')[1]), int(x.split('/')[0])), reverse=True)
+
+            self._log(f"✅ Berhasil mengekstrak {len(months)} bulan: {months}")
+            self.driver.execute_script("arguments[0].scrollTop = 0;", scroll_container)
+            time.sleep(1)
             return months
         except Exception as e:
+            self._log(f"❌ Gagal mengekstrak daftar bulan secara dinamis: {e}")
             return []
 
     def uncheck_selected_rows(self, exclude=None):
         """Uncheck semua row yang sedang tercentang, kecuali yang ada di 'exclude'."""
         try:
-            print(f"🔄 Memulai uncheck mendalam (Target Tetap: '{exclude}')...")
+            self._log(f"🔄 Memulai uncheck mendalam (Target Tetap: '{exclude}')...")
             
             # --- 1. Paksa Kosongkan Search Box ---
             try:
@@ -173,7 +180,7 @@ class SkillSelectScraper:
                     sb = search_boxes[0]
                     self.driver.execute_script("arguments[0].value = '';", sb)
                     sb.send_keys(Keys.ENTER) # Trigger refresh
-                    print("✅ Search box dikosongkan.")
+                    self._log("✅ Search box dikosongkan.")
                     time.sleep(1.5)
             except: pass
 
@@ -201,10 +208,10 @@ class SkillSelectScraper:
                         processed_titles.add(title)
 
                         if exclude and title == exclude.strip():
-                            print(f"  ⏭️ Skip (ingin tetap tercentang): '{title}'")
+                            self._log(f"  ⏭️ Skip (ingin tetap tercentang): '{title}'")
                             continue
                         
-                        print(f"  ✅ Melakukan UNCHECK pada: '{title}'")
+                        self._log(f"  ✅ Melakukan UNCHECK pada: '{title}'")
                         # Klik spesifik pada element title agar lebih akurat di Qlik
                         self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", title_el)
                         time.sleep(0.3)
@@ -221,35 +228,29 @@ class SkillSelectScraper:
                 if curr_pos == last_scroll_pos: break
                 last_scroll_pos = curr_pos
 
-            print(f"🎉 Selesai. Total item di-uncheck: {uncheck_count}")
+            self._log(f"🎉 Selesai. Total item di-uncheck: {uncheck_count}")
             time.sleep(1.2)
                 
         except Exception as e:
-            print(f"❌ Gagal uncheck: {e}")
-
+            self._log(f"❌ Gagal uncheck: {e}")
     def search_and_select_item(self, item_text, action_name="Item"):
+        print(f"Mengetik '{item_text}' di kolom pencarian...")
         try:
             search_box = self.wait.until(EC.element_to_be_clickable((By.XPATH, config.XPATH_SEARCH_LISTBOX)))
+            
             search_box.send_keys(Keys.CONTROL + "a")
             time.sleep(0.2)
             search_box.send_keys(Keys.BACKSPACE)
             time.sleep(0.5)
+            
             search_box.send_keys(item_text)
             time.sleep(1.0) 
             
             xpath_target = config.XPATH_DROPDOWN_ROW.format(item_text)
-            row_element = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath_target)))
+            self.click_element(xpath_target, action_name)
             
-            ticks = row_element.find_elements(By.XPATH, ".//i[contains(@class, 'lui-icon--tick')]")
-            is_selected = row_element.get_attribute("aria-selected") == "true"
-            
-            if ticks or is_selected:
-                print(f"✅ {item_text} sudah dalam kondisi terpilih (tercentang).")
-            else:
-                self.click_element(xpath_target, action_name)
-                
         except Exception as e:
-            print(f"❌ Gagal mencari {item_text}: {e}")
+            print(f"❌ Gagal mencari {item_text} via Search: {e}")
 
     def search_and_unselect_item(self, item_text, action_name="Item"):
         if not item_text:
@@ -315,10 +316,13 @@ class SkillSelectScraper:
             export_menu = self.wait.until(EC.element_to_be_clickable((By.XPATH, config.XPATH_EXPORT_DATA)))
             try:
                 export_menu.click() 
+                print("✅ Pilihan 'Export data' berhasil diklik!")
             except:
                 self.driver.execute_script("arguments[0].click();", export_menu)
+                print("✅ Pilihan 'Export data' berhasil diklik (via JS)!")
             
             time.sleep(2) 
+
             print("Mengeklik tombol 'Export' di dalam dialog...")
             self.click_element(config.XPATH_DIALOG_EXPORT_BTN, "Tombol Export (Dialog)")
             
@@ -346,24 +350,40 @@ class SkillSelectScraper:
             except Exception as e:
                 print(f"❌ Gagal menutup dialog: {e}")
 
-    def check_file_exists(self, filename_prefix, english_score):
-        target_dir = os.path.join(config.DOWNLOAD_DIR, f"Score_{english_score}")
+    # ==============================================================
+    # --- FITUR BARU: CEK FILE CSV ---
+    # ==============================================================
+    def check_file_exists(self, filename_prefix, month_folder):
+        """Mengecek apakah file .csv dengan prefix tertentu sudah ada di folder Tahun/Bulan"""
+        year = month_folder.split('/')[1]
+        safe_month = month_folder.replace('/', '_').replace('\\', '_')
+        safe_prefix = filename_prefix.replace('/', '_').replace('\\', '_')
+        
+        target_dir = os.path.join(config.DOWNLOAD_DIR, year, safe_month)
         
         if not os.path.exists(target_dir):
             return False
             
-        search_pattern = os.path.join(target_dir, f"{filename_prefix}_*.csv")
-        return len(glob.glob(search_pattern)) > 0
+        # Mencari file yang berekstensi .csv
+        search_pattern = os.path.join(target_dir, f"{safe_prefix}_*.csv")
+        existing_files = glob.glob(search_pattern)
+        
+        return len(existing_files) > 0
 
-    def wait_and_rename_file(self, filename_prefix, state_name=None, english_score=None): 
+    def wait_and_rename_file(self, filename_prefix, state_name=None, english_score=None, month_folder=None): 
         self._log("Menunggu file selesai diunduh...")
         timeout = 180 
         start_time = time.time()
         
-        target_dir = os.path.join(config.DOWNLOAD_DIR, f"Score_{english_score}") if english_score else config.DOWNLOAD_DIR
-        
-        if not os.path.exists(target_dir):
-            os.makedirs(target_dir)
+        target_dir = config.DOWNLOAD_DIR
+        if month_folder:
+            year = month_folder.split('/')[1]
+            safe_month = month_folder.replace('/', '_').replace('\\', '_')
+            
+            # Struktur folder sekarang: DATASET/2026/02_2026/
+            target_dir = os.path.join(config.DOWNLOAD_DIR, year, safe_month)
+            if not os.path.exists(target_dir):
+                os.makedirs(target_dir)
 
         while True:
             # Cari di folder worker sendiri
@@ -373,7 +393,9 @@ class SkillSelectScraper:
             else:
                 time.sleep(2)
                 break
+                
             if time.time() - start_time > timeout:
+                print("❌ Timeout! File gagal diunduh atau jaringan lambat.")
                 return
 
         list_of_files = glob.glob(os.path.join(self.worker_download_dir, '*.xlsx'))
@@ -382,20 +404,31 @@ class SkillSelectScraper:
             return
             
         latest_file = max(list_of_files, key=os.path.getctime)
-        new_name = f"{filename_prefix}_{int(time.time())}.csv"
+        
+        safe_prefix = filename_prefix.replace('/', '_').replace('\\', '_')
+        # GANTI EKSTENSI MENJADI .csv
+        new_name = f"{safe_prefix}_{int(time.time())}.csv"
         new_path = os.path.join(target_dir, new_name)
         
         try:
+            print(f"Mengonversi file ke CSV dan menyuntikkan identitas data...")
+            # Membaca file Excel mentah yang baru didownload
             df = pd.read_excel(latest_file)
             
-            if english_score is not None:
+            if state_name:
+                df['Nominated State'] = state_name
+            if english_score:
                 df['English Test Score'] = english_score
-            if state_name is not None:
-                df['State'] = state_name
+            if month_folder:
+                df['As At Month'] = month_folder
                 
+            # Menyimpan data dalam format CSV
             df.to_csv(new_path, index=False)
             self._log(f"✅ Berhasil di-convert dan simpan ke: {new_name}")
+            
+            # Hapus file Excel asli dari folder downloads agar tidak menumpuk
             os.remove(latest_file)
+            
         except Exception as e:
             self._log(f"❌ Gagal memanipulasi file Pandas: {e}")
 

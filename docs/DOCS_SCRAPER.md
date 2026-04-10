@@ -1,15 +1,30 @@
-# 🕸️ Core Scraper Engine Documentation (`scraper.py`)
+# 🕷️ Scraper Class Documentation (`scraper.py`)
 
-This file contains the `SkillSelectScraper` class, managing all Selenium WebDriver interactions, waits, and file conversions.
+The `SkillSelectScraper` class is a high-level wrapper around Selenium, specifically designed to handle the complexities of the Qlik Sense UI.
 
-## 🛠️ Key Methods
+## 🏗️ Initialization & Setup
 
-* **`_setup_driver()`**: Configures Chrome to auto-download files to our specific directory without prompting. It also applies anti-bot evasions.
-* **`use_smart_search(keyword)`**: A clever workaround to seed the first filters. It clicks the magnifying glass, types the parameter (e.g., 'ACT' or '10'), and selects the first result.
-* **`click_element(xpath)`**: A robust clicker that tries Selenium's `ActionChains` first. If the UI is stubborn or overlapping, it forces a click via JavaScript injection.
-* **`export_table_data()`**: Automates the right-click (`context_click`) process on the Qlik table, navigates the export dialogs, and waits for the server to generate the Excel file.
-* **`wait_and_rename_file()`**: 
-    1. Polls the directory until the Chrome `.crdownload` file is finished.
-    2. Reads the raw `.xlsx` file using Pandas.
-    3. Injects the current loop's `State` and `English Test Score` into the dataframe.
-    4. Saves it as a `.csv` inside the corresponding `Score_X` sub-folder and deletes the raw Excel file.
+- **`__init__(worker_id)`**: Initializes the WebDriver and creates a unique temporary download directory for the worker to avoid file collisions during parallel downloads.
+- **`_setup_driver()`**: Configures Chrome with optimized settings (headless support, image blocking, eager page load strategy, and anti-bot bypass).
+
+## 🖱️ Browser Interactions
+
+- **`click_element()`**: A robust clicking method that uses `ActionChains` with a fallback to `JS MouseEvent` injection if standard clicks are intercepted by Qlik's dynamic overlays.
+- **`search_and_select_item()`**: Inputs text into a dropdown's search box and selects the matching result.
+- **`uncheck_selected_rows()`**: A specialized utility that scrolls through a listbox and unchecks all items except an optional excluded one. This is critical for maintaining clean filters in Qlik.
+- **`get_available_months()`**: Scans the "As At Month" listbox using automatic scrolling to extract all available data points dynamically.
+
+## 📊 Data Export & Handling
+
+- **`export_table_data()`**: Automates the right-click context menu on the main data table, selects "Export data," and triggers the generation of the Excel file.
+- **`wait_and_rename_file()`**: 
+    1. Polls the worker's download directory until the Chrome `.crdownload` file is finished.
+    2. Identifies the most recent `.xlsx` file.
+    3. Reads the file into a Pandas DataFrame.
+    4. **Data Injection**: Dynamically adds `Nominated State`, `English Test Score`, and `As At Month` columns to ensure context is preserved.
+    5. Saves the final result as a `.csv` in the primary `DATASET` folder with a structured name.
+    6. Deletes the original Excel file to maintain a clean workspace.
+
+## 🛡️ Anti-Bot & Reliability
+- Uses **CDP (Chrome DevTools Protocol)** commands to hide the `navigator.webdriver` flag.
+- Implements various wait strategies (`WebDriverWait`) and fallback JS execution to handle the high latency and dynamic nature of Qlik dashboards.

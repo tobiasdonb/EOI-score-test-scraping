@@ -1,5 +1,5 @@
-# Mengabaikan folder hasil unduhan scraper
-DATASET_SCORE_TEST_EOI/
+# Mengabaikan folder hasil unduhan/data scraper
+DATASET/
 *.csv
 *.xlsx
 *.crdownload
@@ -17,6 +17,6 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Mengabaikan file sistem
+# Mengabaikan file sistem (Mac/Windows)
 .DS_Store
 Thumbs.db

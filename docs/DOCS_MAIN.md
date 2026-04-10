@@ -1,17 +1,32 @@
-# 🚦 Main Execution Flow (`main.py`)
+# 🚀 Main Scraper Logic Documentation (`main.py`)
 
-This orchestrator script ties the configuration and scraper engine together into a logical sequence.
+The `main.py` script serves as the orchestrator for the entire scraping process. It handles parallelization, task distribution, and the core worker routine.
 
-## 🔄 The Pipeline
+## 🧵 Multi-Threaded Architecture
 
-1. **Initialization**: Opens the dashboard and waits for the initial loader to disappear.
-2. **Parameter Injection**: Sets Occupation and Points to YES.
-3. **Global Filtering**: Locks in Visa Types and EOI Statuses.
-4. **Smart Seeding**: Uses the Smart Search bar to apply the very first State and English Score to the dashboard before moving to the final table.
-5. **Month Lock**: Scrapes available months, picks the latest one, and locks it in.
-6. **The Double Loop**:
-    * **Outer Loop (Scores)**: Iterates through 0, 10, and 20. Uses the "Current Selections" top bar to swap scores.
-    * **Inner Loop (States)**: Iterates through all Australian states.
-    * **Auto-Skip**: Before downloading, it checks if `EOI_[State]_SCORE_[Score]...csv` exists. If yes, it skips to save time.
-    * **Extraction**: Triggers the export, waits for the file, cleans it, and loops again.
-7. **Cleanup**: Gracefully closes the browser after completing the matrix.
+The scraper uses Python's `ThreadPoolExecutor` to run multiple browser instances simultaneously. 
+- **Strategy**: One worker per English Test Score (0, 10, 20).
+- **Task Distribution**: Months are divided among the workers.
+- **Staggered Start**: To prevent overloading the target server or the local system, workers start with a slight delay between each other.
+
+## 🛠️ Key Components
+
+### 1. Helper Functions
+- **`generate_month_range()`**: Converts the start/end month strings from `config.py` into a sorted list of month-year combinations.
+- **`setup_bot_environment()`**: Performs the initial navigation, bypasses the page loader, sets up primary filters, and navigates to the final data table.
+
+### 2. Worker Routine (`worker_routine`)
+Each worker thread follows this cycle:
+1. **Initialize Browser**: Creates a unique `SkillSelectScraper` instance with its own download directory.
+2. **Environment Setup**: Runs the common setup routine.
+3. **Task Loop**: Iterates through assigned `(month, score)` tasks:
+    - **Switch Month/Score**: Efficiently updates the filters in the "Current Selections" bar.
+    - **Resume Check**: Skips the task if the target file already exists in the `DATASET` folder.
+    - **State Loop**: Iterates through all target States:
+        - Switches the active state.
+        - Triggers the Qlik "Export data" menu.
+        - Waits for the download and converts the file to CSV.
+4. **Cleanup**: Closes the browser after all tasks are completed.
+
+### 3. Entry Point (`main`)
+The main function calculates the tasks, chunks them for the available workers, and kicks off the multi-threaded execution.
