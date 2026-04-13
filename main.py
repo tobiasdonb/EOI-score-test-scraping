@@ -1,4 +1,5 @@
 import time
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from scraper import SkillSelectScraper
 import config
@@ -121,10 +122,18 @@ def worker_routine(worker_id, tasks):
         active_state = config.STATES[0]
 
         for month, score in tasks:
-            bot._log(f"\n--- PROCESSING: {month} | SCORE: {score} ---")
-
+            # --- PRE-CHECK: Cek kelengkapan data state untuk bulan ini ---
+            missing_states = []
+            for check_state in config.STATES:
+                safe_name = f"EOI_{check_state}_SCORE_{score}_{month.replace('/', '_')}"
+                if not bot.check_file_exists(safe_name, english_score=score, month_folder=month):
+                    missing_states.append(check_state)
             
-            # A. GANTI BULAN
+            if not missing_states:
+                bot._log(f"⏩ Data Bulan {month} (Score {score}) sudah LENGKAP 100%. Melewati aksi UI...")
+                continue # Lanjut ke iterasi `for month` berikutnya
+            
+            # --- A. GANTI BULAN DI UI (Hanya jika belum di bulan target) ---
             if current_active_month is None:
                 bot.switch_to_main_page()
                 auto_month = bot.get_current_selection_text(
@@ -197,50 +206,16 @@ def worker_routine(worker_id, tasks):
 
                 bot.click_element(config.XPATH_ACTION_CONFIRM, "Confirm Transisi Bulan")
                 time.sleep(3.5)
-            # elif month != current_active_month:
-            #     # --- PERGANTIAN BULAN BERIKUTNYA ---
-            #     bot.switch_to_main_page()
-            #     time.sleep(1)
-            #     bot.click_element(config.XPATH_CURRENT_SELECTION_MONTH, "Ganti Bulan")
-            #     time.sleep(1.5)  # Pastikan dropdown terbuka sempurna
-
-            #     try:
-            #         bot.search_and_select_item(month, f"Pilih {month}")
-            #         bot.search_and_unselect_item(current_active_month, f"Hapus {current_active_month}")
-                    
-            #         # 🛡️ LAPIS PENGAMAN EXTRA: Jika bot kelelahan dan ada bulan siluman tersisa
-            #         bot.uncheck_selected_rows(exclude=month)
-                    
-            #     except Exception as search_err:
-            #         bot._log(f"⚠️ Dropdown lag/nyangkut! Melakukan Retry... ({search_err})")
-            #         try:
-            #             bot.click_element(config.XPATH_ACTION_CONFIRM, "Tutup Darurat")
-            #         except:
-            #             pass
-            #         time.sleep(2)
-            #         bot.click_element(
-            #             config.XPATH_CURRENT_SELECTION_MONTH, "Buka Ulang Bulan"
-            #         )
-            #         time.sleep(2)
-            #         bot.search_and_select_item(month, f"Pilih {month}")
-            #         bot.search_and_unselect_item(
-            #             current_active_month, f"Hapus {current_active_month}"
-            #         )
-
-            #     # 3. Confirm SEKALI saja untuk kedua aksi di atas!
-            #     bot.click_element(config.XPATH_ACTION_CONFIRM, "Confirm Transisi Bulan")
-            #     time.sleep(2)  # Jeda agar tabel final selesai dimuat
-
-            # B. GANTI SCORE
-            # (Kode B Anda tetap sama, biarkan tidak berubah)
-
-            # C. ITERASI STATE & DOWNLOAD (STRUKTUR BARU)
-            # 2. HAPUS first_state_flag karena sudah tidak diperlukan!
-            for state in config.STATES:
+            
+            # Pada iterasi ini, Current Active Month berhasil dipindah
+            current_active_month = month
+            
+            # --- B. PRIORITASKAN MISSING STATES ---
+            for state in missing_states:
                 safe_name = f"EOI_{state}_SCORE_{score}_{month.replace('/', '_')}"
                 
-                if bot.check_file_exists(safe_name, month_folder=month):
-                    bot._log(f"[SKIP] {state} skip - File exist.")
+                # Cek file exist sekali lagi sebagai lapis pengaman
+                if bot.check_file_exists(safe_name, english_score=score, month_folder=month):
                     continue
                 
                 if state != active_state:
@@ -274,7 +249,6 @@ def worker_routine(worker_id, tasks):
                             state, f"Check {state}"
                         )
                         
-
                         if select_success:
                             # METODE SAPU BERSIH (CLEAN SWEEP)
                             for other_state in config.STATES:
@@ -298,7 +272,6 @@ def worker_routine(worker_id, tasks):
                                         other_state, f"Uncheck {other_state}"
                                     )
                                     
-
                             bot.click_element(
                                 config.XPATH_ACTION_CONFIRM, "Confirm Switch State"
                             )
@@ -311,47 +284,6 @@ def worker_routine(worker_id, tasks):
                             bot.click_element(config.XPATH_ACTION_CONFIRM, "Tutup Menu State")
                             time.sleep(1)
                             continue
-                # 3. Transisi state yang alami dan aman
-                # if state != active_state:
-                    # bot.switch_to_main_page()
-                    
-                    # # Pengecekan krusial: Apakah pill filter State ada?
-                    # pill_elements = bot.driver.find_elements(By.XPATH, config.XPATH_CURRENT_SELECTION_STATE)
-                    # if not pill_elements:
-                    #     bot._log(f"[RESCUE] Pill State hilang! Memaksa inisialisasi '{state}' via Smart Search...")
-                    #     bot.use_smart_search(state)
-                    #     time.sleep(2)
-                        
-                    #     # Verifikasi apakah rescue berhasil
-                    #     if not bot.driver.find_elements(By.XPATH, config.XPATH_CURRENT_SELECTION_STATE):
-                    #         bot._log(f"[SKIP] State '{state}' benar-benar kosong, Smart Search gagal.")
-                    #         continue # Lewati state ini
-                            
-                    #     active_state = state
-                    #     # Lanjut langsung ke download karena Smart Search sudah menanam state ini
-                    # else:
-                    #     # Alur normal via Dropdown Pill
-                    #     bot.click_element(config.XPATH_CURRENT_SELECTION_STATE, "Switch State")
-                    #     time.sleep(2.0)
-                        
-                    #     # Coba cari dan check state yang baru DULU
-                    #     select_success = bot.search_and_select_item(state, f"Check {state}")
-                        
-                    #     if select_success:
-                    #         # METODE SAPU BERSIH (CLEAN SWEEP)
-                    #         for other_state in config.STATES:
-                    #             if other_state != state:
-                    #                 bot.search_and_unselect_item(other_state, f"Uncheck {other_state}")
-                            
-                    #         bot.click_element(config.XPATH_ACTION_CONFIRM, "Confirm Switch State")
-                    #         time.sleep(1.2)
-                            
-                    #         active_state = state
-                    #     else:
-                    #         bot._log(f"[SKIP] State '{state}' tidak tersedia di dropdown, melewati...")
-                    #         bot.click_element(config.XPATH_ACTION_CONFIRM, "Tutup Menu State")
-                    #         time.sleep(1)
-                    #         continue # Langsung lanjut ke state berikutnya tanpa mendownload
 
                 # Download
                 bot.switch_to_dashboard_iframe()
@@ -359,8 +291,8 @@ def worker_routine(worker_id, tasks):
                 bot.wait_and_rename_file(safe_name, state_name=state, english_score=score, month_folder=month)
                 bot.close_export_dialog()
                 time.sleep(0.5)
-
-            current_active_month = month
+        
+            # current_active_score diset per iterasi tasks utama
             current_active_score = score
 
         bot._log("✅ Pekerjaan Selesai.")
@@ -406,13 +338,11 @@ def main():
             futures.append(executor.submit(worker_routine, i, worker_tasks))
 
             # (Opsional) Pengaturan Start Barengan / Staggered
-            # Jika ingin load barengan, biarkan di-comment (pakai #)
-            # Jika internet lag, hapus tanda # di bawah ini dan beri waktu 10-15 detik
-
-            # if i < num_workers - 1:
-            #     stagger_delay = 10
-            #     print(f"  [WAIT] Menunggu {stagger_delay} detik...\n")
-            #     time.sleep(stagger_delay)
+            # Jika internet lag dan web gagal memuat, gunakan mode ini
+            if i < num_workers - 1:
+                stagger_delay = 5
+                print(f"  [WAIT] Menunggu {stagger_delay} detik agar beban awal web dan CPU stabil sebelum membuka browser berikutnya...\n")
+                time.sleep(stagger_delay)
 
         # Tunggu sampai semua worker selesai
         for future in futures:

@@ -384,21 +384,22 @@ class SkillSelectScraper:
             except Exception as e:
                 self._log(f"❌ Gagal menutup dialog: {e}")
 
-    # ==============================================================
-    # --- FITUR BARU: CEK FILE CSV ---
-    # ==============================================================
-    def check_file_exists(self, filename_prefix, month_folder):
-        """Mengecek apakah file .csv dengan prefix tertentu sudah ada di folder Tahun/Bulan"""
-        year = month_folder.split('/')[1]
-        safe_month = month_folder.replace('/', '_').replace('\\', '_')
-        safe_prefix = filename_prefix.replace('/', '_').replace('\\', '_')
+    def check_file_exists(self, filename_prefix, english_score=None, month_folder=None):
+        """Mengecek apakah file .csv dengan prefix tertentu sudah ada di folder Tahun/Bulan/Score"""
+        target_dir = config.DOWNLOAD_DIR
+        if month_folder:
+            year = month_folder.split('/')[1]
+            safe_month = month_folder.replace('/', '_').replace('\\', '_')
+            target_dir = os.path.join(target_dir, year, safe_month)
         
-        target_dir = os.path.join(config.DOWNLOAD_DIR, year, safe_month)
-        
+        if english_score is not None:
+            target_dir = os.path.join(target_dir, f"Score_{english_score}")
+            
         if not os.path.exists(target_dir):
             return False
             
         # Mencari file yang berekstensi .csv
+        safe_prefix = filename_prefix.replace('/', '_').replace('\\', '_')
         search_pattern = os.path.join(target_dir, f"{safe_prefix}_*.csv")
         existing_files = glob.glob(search_pattern)
         
@@ -413,11 +414,13 @@ class SkillSelectScraper:
         if month_folder:
             year = month_folder.split('/')[1]
             safe_month = month_folder.replace('/', '_').replace('\\', '_')
+            target_dir = os.path.join(target_dir, year, safe_month)
             
-            # Struktur folder sekarang: DATASET/2026/02_2026/
-            target_dir = os.path.join(config.DOWNLOAD_DIR, year, safe_month)
-            if not os.path.exists(target_dir):
-                os.makedirs(target_dir)
+        if english_score is not None:
+            target_dir = os.path.join(target_dir, f"Score_{english_score}")
+        
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir)
 
         while True:
             # Cari di folder worker sendiri
