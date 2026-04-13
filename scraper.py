@@ -85,11 +85,11 @@ class SkillSelectScraper:
             
             actions = ActionChains(self.driver)
             actions.move_to_element(element).click().perform()
-            print(f"✅ Klik: {action_name}")
+            self._log(f"✅ Klik: {action_name}")
             time.sleep(0.5) 
             
         except Exception as e:
-            print(f"⚠️ ActionChains gagal pada {action_name}. Mencoba injeksi MouseEvent JS...")
+            self._log(f"⚠️ ActionChains gagal pada {action_name}. Mencoba injeksi MouseEvent JS...")
             if element:
                 try:
                     self.driver.execute_script("""
@@ -100,12 +100,38 @@ class SkillSelectScraper:
                         var evt3 = new MouseEvent('click', {bubbles: true, cancelable: true, view: window});
                         arguments[0].dispatchEvent(evt3);
                     """, element)
-                    print(f"✅ Klik (JS MouseEvent): {action_name}")
+                    self._log(f"✅ Klik (JS MouseEvent): {action_name}")
                     time.sleep(0.5)
                 except Exception as js_e:
-                    print(f"❌ Alternatif JS gagal: {js_e}")
+                    self._log(f"❌ Alternatif JS gagal: {js_e}")
             else:
-                print(f"❌ {action_name} tidak ditemukan di layar! (Timeout)")
+                self._log(f"❌ {action_name} tidak ditemukan di layar! (Timeout)")
+
+    def use_smart_search(self, keyword):
+        """Menggunakan fitur Qlik Smart Search untuk menanam filter secara global."""
+        self._log(f"🔍 Menggunakan Smart Search untuk: {keyword}")
+        try:
+            # 1. Pastikan di main page (luar iframe) untuk menekan tombol Search
+            self.switch_to_main_page()
+            self.click_element(config.XPATH_SMART_SEARCH_BTN, "Tombol Smart Search")
+            time.sleep(0.8)
+
+            # 2. Ketik keyword
+            search_input = self.wait.until(EC.presence_of_element_located((By.XPATH, config.XPATH_SMART_SEARCH_INPUT)))
+            search_input.clear()
+            search_input.send_keys(keyword)
+            time.sleep(1.5) 
+
+            # 3. Pilih hasil pertama
+            self.click_element(config.XPATH_SMART_SEARCH_FIRST_RESULT, "Hasil Pencarian Pertama (Smart Search)")
+            time.sleep(1.2)
+
+            # 4. Tutup overlay search dengan ESC
+            ActionChains(self.driver).send_keys(Keys.ESCAPE).perform()
+            self._log(f"✅ Berhasil menanam filter '{keyword}' via Smart Search.")
+            time.sleep(1)
+        except Exception as e:
+            self._log(f"❌ Gagal menggunakan Smart Search: {e}")
 
     def get_current_selection_text(self, xpath):
         """
@@ -130,7 +156,7 @@ class SkillSelectScraper:
             return None
 
         except Exception as e:
-            print(f"⚠️ Tidak dapat membaca current selection: {e}")
+            self._log(f"⚠️ Tidak dapat membaca current selection: {e}")
             return None
 
     def get_available_months(self):
@@ -234,7 +260,7 @@ class SkillSelectScraper:
         except Exception as e:
             self._log(f"❌ Gagal uncheck: {e}")
     def search_and_select_item(self, item_text, action_name="Item"):
-        print(f"Mengetik '{item_text}' di kolom pencarian...")
+        self._log(f"Mengetik '{item_text}' di kolom pencarian...")
         try:
             search_box = self.wait.until(EC.element_to_be_clickable((By.XPATH, config.XPATH_SEARCH_LISTBOX)))
             
@@ -247,15 +273,23 @@ class SkillSelectScraper:
             time.sleep(1.0) 
             
             xpath_target = config.XPATH_DROPDOWN_ROW.format(item_text)
+            
+            elements = self.driver.find_elements(By.XPATH, xpath_target)
+            if not elements:
+                self._log(f"[WARN] '{item_text}' tidak ditemukan. Mungkin state/data ini kosong.")
+                return False
+                
             self.click_element(xpath_target, action_name)
+            return True
             
         except Exception as e:
-            print(f"❌ Gagal mencari {item_text} via Search: {e}")
+            self._log(f"❌ Gagal mencari {item_text} via Search: {e}")
+            return False
 
     def search_and_unselect_item(self, item_text, action_name="Item"):
         if not item_text:
             return
-        print(f"🔄 Menggunakan Search Explicit untuk UNCHECK: '{item_text}'")
+        self._log(f"🔄 Menggunakan Search Explicit untuk UNCHECK: '{item_text}'")
         try:
             search_box = self.wait.until(EC.element_to_be_clickable((By.XPATH, config.XPATH_SEARCH_LISTBOX)))
             self.driver.execute_script("arguments[0].value = '';", search_box)
@@ -273,18 +307,18 @@ class SkillSelectScraper:
             is_selected = row_element.get_attribute("aria-selected") == "true"
             
             if ticks or is_selected:
-                print(f"  🔍 Ditemukan {item_text} dalam keadaan tercentang, mengeklik untuk uncheck...")
+                self._log(f"  🔍 Ditemukan {item_text} dalam keadaan tercentang, mengeklik untuk uncheck...")
                 self.click_element(xpath_target, action_name)
                 time.sleep(0.5)
             else:
-                print(f"  ℹ️ {item_text} sudah TIDAK tercentang.")
+                self._log(f"  ℹ️ {item_text} sudah TIDAK tercentang.")
                 
         except Exception as e:
-            print(f"❌ Gagal mencari & unselect {item_text}: {e}")
+            self._log(f"❌ Gagal mencari & unselect {item_text}: {e}")
 
     def export_table_data(self):
         try:
-            print("Mencari sel tabel untuk di-klik kanan...")
+            self._log("Mencari sel tabel untuk di-klik kanan...")
             table_cell = self.wait.until(EC.visibility_of_element_located((By.XPATH, config.XPATH_TABLE_CELL)))
             
             self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", table_cell)
@@ -293,7 +327,7 @@ class SkillSelectScraper:
             # Mencoba klik kanan sampai menu muncul (max 3 kali)
             menu_opened = False
             for attempt in range(3):
-                print(f"Melakukan klik kanan pada tabel (Percobaan {attempt+1})...")
+                self._log(f"Melakukan klik kanan pada tabel (Percobaan {attempt+1})...")
                 actions = ActionChains(self.driver)
                 actions.context_click(table_cell).perform()
                 time.sleep(2)
@@ -302,7 +336,7 @@ class SkillSelectScraper:
                     menu_opened = True
                     break
                 else:
-                    print("⚠️ Menu belum terbuka, mencoba klik kanan dengan JS...")
+                    self._log("⚠️ Menu belum terbuka, mencoba klik kanan dengan JS...")
                     self.driver.execute_script("arguments[0].dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, cancelable: true, view: window}));", table_cell)
                     time.sleep(2)
                     if self.driver.find_elements(By.XPATH, config.XPATH_EXPORT_DATA):
@@ -312,43 +346,43 @@ class SkillSelectScraper:
             if not menu_opened:
                 raise Exception("Gagal membuka menu konteks (Export data) setelah 3 percobaan.")
 
-            print("Mengeklik pilihan 'Export data'...")
+            self._log("Mengeklik pilihan 'Export data'...")
             export_menu = self.wait.until(EC.element_to_be_clickable((By.XPATH, config.XPATH_EXPORT_DATA)))
             try:
                 export_menu.click() 
-                print("✅ Pilihan 'Export data' berhasil diklik!")
+                self._log("✅ Pilihan 'Export data' berhasil diklik!")
             except:
                 self.driver.execute_script("arguments[0].click();", export_menu)
-                print("✅ Pilihan 'Export data' berhasil diklik (via JS)!")
+                self._log("✅ Pilihan 'Export data' berhasil diklik (via JS)!")
             
             time.sleep(2) 
 
-            print("Mengeklik tombol 'Export' di dalam dialog...")
+            self._log("Mengeklik tombol 'Export' di dalam dialog...")
             self.click_element(config.XPATH_DIALOG_EXPORT_BTN, "Tombol Export (Dialog)")
             
-            print("Menunggu server Qlik men-generate file (bisa memakan waktu)...")
+            self._log("Menunggu server Qlik men-generate file (bisa memakan waktu)...")
             wait_long = WebDriverWait(self.driver, 120) 
             download_link = wait_long.until(EC.element_to_be_clickable((By.XPATH, config.XPATH_DOWNLOAD_LINK)))
             
             self.driver.execute_script("arguments[0].click();", download_link)
-            print("✅ Link download berhasil diklik! Proses pengunduhan di background berjalan...")
+            self._log("✅ Link download berhasil diklik! Proses pengunduhan di background berjalan...")
             time.sleep(1.5) 
             
         except Exception as e:
-            print(f"❌ Gagal melakukan proses ekspor tabel: {e}")
+            self._log(f"❌ Gagal melakukan proses ekspor tabel: {e}")
 
     def close_export_dialog(self):
-        print("Menutup dialog ekspor...")
+        self._log("Menutup dialog ekspor...")
         try:
             self.click_element(config.XPATH_DIALOG_CLOSE_BTN, "Tombol Close Dialog")
             time.sleep(0.5)
         except:
-            print("⚠️ Tombol close terhalang, mencoba menekan tombol ESCAPE...")
+            self._log("⚠️ Tombol close terhalang, mencoba menekan tombol ESCAPE...")
             try:
                 ActionChains(self.driver).send_keys(Keys.ESCAPE).perform()
                 time.sleep(0.5)
             except Exception as e:
-                print(f"❌ Gagal menutup dialog: {e}")
+                self._log(f"❌ Gagal menutup dialog: {e}")
 
     # ==============================================================
     # --- FITUR BARU: CEK FILE CSV ---

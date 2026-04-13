@@ -15,7 +15,7 @@ MAX_WORKERS = 3
 # Range bulan yang ingin di-scrape (format: 'MM/YYYY')
 # Scraper akan memproses dari END_MONTH (terbaru) mundur ke START_MONTH (terlama)
 START_MONTH = '01/2025'  # Bulan terlama
-END_MONTH   = '12/2025'  # Bulan terbaru
+END_MONTH   = '11/2025'  # Bulan terbaru
 
 # Fallback/Cadangan list bulan jika ekstraksi dinamis di web Qlik gagal
 MONTHS = [
@@ -60,7 +60,7 @@ XPATH_VISA_190 = "//div[@role='row' and .//div[@title='190SAS Skilled Australian
 XPATH_VISA_491_SR = "//div[@role='row' and .//div[@title='491FSR Family Sponsored - Regional']]"
 XPATH_VISA_491_ST = "//div[@role='row' and .//div[@title='491SNR State or Territory Nominated - Regional']]"    
 
-# Opsi EOI Status
+# Opsi EOI Statuss
 XPATH_EOI_SUBMITTED = "//div[@role='row' and .//div[@title='SUBMITTED']]"
 XPATH_EOI_INVITED = "//div[@role='row' and .//div[@title='INVITED']]"
 XPATH_EOI_LODGED = "//div[@role='row' and .//div[@title='LODGED']]"
@@ -70,6 +70,11 @@ XPATH_EOI_CLOSED = "//div[@role='row' and .//div[@title='CLOSED']]"
 # Aksi Panel Filter
 XPATH_ACTION_CONFIRM = "//button[@data-testid='actions-toolbar-confirm']"
 XPATH_ACTION_CLEAR = "//button[@data-testid='actions-toolbar-clear']"
+
+# --- SMART SEARCH ---
+XPATH_SMART_SEARCH_BTN = "//button[@tid='toggleGlobalSearchButton']"
+XPATH_SMART_SEARCH_INPUT = "//input[contains(@class, 'lui-search__input')]"
+XPATH_SMART_SEARCH_FIRST_RESULT = "(//div[@tid='globalSearch.resultField']//div[contains(@class, 'group-hits')])[1]"
 
 # --- FILTER TABEL & CURRENT SELECTIONS ---
 XPATH_STATE_HEADER = "//h6[contains(@title, 'Nominated State') or contains(@title, 'Nominating State')]"
