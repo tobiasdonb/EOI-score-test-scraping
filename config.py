@@ -9,18 +9,21 @@ URL = "https://api.dynamic.reports.employment.gov.au/anonap/extensions/hSKLS02_S
 
 HEADLESS = False  # Ubah ke False jika ingin melihat browser berjalan
 
+# # Pilihan untuk menambahkan kolom Points di tabel (Klik YES) atau tidak (Klik NO)
+INCLUDE_POINTS = True
+
 # Jumlah worker paralel (jumlah browser yang dibuka bersamaan)
 MAX_WORKERS = 3
 
 # Range bulan yang ingin di-scrape (format: 'MM/YYYY')
 # Scraper akan memproses dari END_MONTH (terbaru) mundur ke START_MONTH (terlama)
-START_MONTH = '01/2025'  # Bulan terlama
-END_MONTH   = '11/2025'  # Bulan terbaru
+START_MONTH = '01/2026'  # Bulan terlama
+END_MONTH   = '03/2026'  # Bulan terbaru
 
 # Fallback/Cadangan list bulan jika ekstraksi dinamis di web Qlik gagal
 MONTHS = [
-    '01/2025', '02/2025', '03/2025', '04/2025', '05/2025', '06/2025',
-    '07/2025', '08/2025', '09/2025', '10/2025', '11/2025', '12/2025',
+    # '01/2025', '02/2025', '03/2025', '04/2025', '05/2025', '06/2025',
+    # '07/2025', '08/2025', '09/2025', '10/2025', '11/2025', '12/2025',
     '01/2026', '02/2026', '03/2026'
 ] 
 SCORES = ['0', '10', '20'] # Nilai Score yang akan di-scrape
@@ -48,6 +51,12 @@ XPATH_BTN_NO_STATE = "//div[contains(@class, 'qsc-root') and .//span[@title='Nom
 # --- FILTER GLOBAL (FOLDED LISTBOX) ---
 # Tombol Expand untuk membuka Filter Pane
 XPATH_DROPDOWN_SELECT = "//button[@data-testid='filterpane-expand-button']"
+
+# Tombol silang untuk mereset pilihan Bulan di top bar
+XPATH_CLEAR_MONTH_BAR = "//li[@data-csid='As At Month']//div[@title[contains(., 'Clear selection')]]"
+
+# Opsi universal untuk Dropdown (Bisa digunakan format string untuk memilih State maupun Bulan)
+XPATH_DROPDOWN_ROW = "//div[@role='row' and .//div[@title='{}']]"
 
 # Header untuk membuka menu dropdown yang terlipat
 XPATH_HEADER_VISA_TYPE = "//div[@data-testid='collapsed-title-Visa Type']"

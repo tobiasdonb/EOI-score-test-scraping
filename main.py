@@ -55,7 +55,10 @@ def setup_bot_environment(bot,initial_score):
     bot.switch_to_dashboard_iframe()
     bot.click_element(config.XPATH_BTN_YES_OCCUPATION, "Occupation = YES")
     try:
-        bot.click_element(config.XPATH_BTN_NO_POINTS, "Points = NO")
+        if getattr(config, 'INCLUDE_POINTS', True):
+            bot.click_element(config.XPATH_BTN_YES_POINTS, "Points = YES")
+        else:
+            bot.click_element(config.XPATH_BTN_NO_POINTS, "Points = NO")
     except:
         bot._log("[WARN] Tombol 'Points' tidak ditemukan/sudah default.")
 
@@ -133,81 +136,72 @@ def worker_routine(worker_id, tasks):
                 bot._log(f"⏩ Data Bulan {month} (Score {score}) sudah LENGKAP 100%. Melewati aksi UI...")
                 continue # Lanjut ke iterasi `for month` berikutnya
             
-            # --- A. GANTI BULAN DI UI (Hanya jika belum di bulan target) ---
+            # --- A. GANTI BULAN DI UI ---
             if current_active_month is None:
                 bot.switch_to_main_page()
+                time.sleep(1)
+
                 auto_month = bot.get_current_selection_text(
                     config.XPATH_CURRENT_SELECTION_MONTH
                 )
-                bot.click_element(
-                    config.XPATH_CURRENT_SELECTION_MONTH, "Buka Filter Bulan"
-                )
-                time.sleep(1.5)
 
-                # 1. Simpan status keberhasilan memilih bulan
-                select_success = bot.search_and_select_item(month, f"Select {month}")
-
-                # 2. Hanya hapus default jika bulan target berhasil dicentang
-                if select_success and auto_month and auto_month != month:
-                    bot.search_and_unselect_item(
-                        auto_month, f"Uncheck default {auto_month}"
-                    )
-                elif not select_success:
-                    bot._log(
-                        f"⚠️ Gagal memilih {month} di awal! (Beresiko filter kosong)"
-                    )
-
-                bot.click_element(config.XPATH_ACTION_CONFIRM, "Confirm Month Init")
-                time.sleep(2)
-
-            elif month != current_active_month:
-                bot.switch_to_main_page()
-
-                # Beri jeda ekstra jika bot baru saja ngebut melakukan skip
-                time.sleep(2)
-                bot.click_element(config.XPATH_CURRENT_SELECTION_MONTH, "Ganti Bulan")
-                time.sleep(2.5)
-
-                try:
-                    # 1. WAJIB: Pastikan bulan baru berhasil dicentang DULU
-                    select_success = bot.search_and_select_item(month, f"Pilih {month}")
-
-                    if select_success:
-                        # 2. SAPU BERSIH: Hapus SEMUA bulan yang tercentang (kecuali bulan baru)
-                        bot._log("🧹 Sapu bersih semua bulan yang nyangkut...")
-                        bot.uncheck_selected_rows(exclude=month)
-                    else:
-                        # Jika gagal pilih bulan baru, JANGAN hapus apapun agar tidak kosong!
-                        raise Exception(
-                            f"Gagal ketik/centang {month}, membatalkan uncheck..."
-                        )
-
-                except Exception as search_err:
-                    bot._log(
-                        f"⚠️ Dropdown lag/nyangkut! Melakukan Retry... ({search_err})"
-                    )
-                    try:
-                        bot.click_element(config.XPATH_ACTION_CONFIRM, "Tutup Darurat")
-                    except:
-                        pass
-
-                    # Beri waktu Qlik bernapas dari freeze
-                    time.sleep(3)
+                if not auto_month:
+                    bot._log(f"Pill As At Month tidak ditemukan, menanam bulan {month} dengan Smart Search...")
+                    bot.use_smart_search(month)
+                    time.sleep(2)
+                elif auto_month == month:
+                    bot._log(f"✅ Bulan {month} sudah terpilih sebagai default.")
+                else:
+                    bot._log(f"🧹 Mengganti pilihan bulan default dari ({auto_month}) ke {month}...")
                     bot.click_element(
-                        config.XPATH_CURRENT_SELECTION_MONTH, "Buka Ulang Bulan"
+                        config.XPATH_CURRENT_SELECTION_MONTH, "Buka Filter Bulan"
                     )
+                    time.sleep(1.5)
+
+                    # Pilih bulan target
+                    bot.search_and_select_item(month, f"Pilih {month}")
+                    time.sleep(1)
+                    
+                    # Hapus default lama
+                    bot.search_and_unselect_item(auto_month, f"Uncheck {auto_month}")
+                    time.sleep(1)
+                    
+                    bot.click_element(config.XPATH_ACTION_CONFIRM, "Confirm Month Init")
                     time.sleep(2)
 
-                    # Percobaan kedua
-                    retry_success = bot.search_and_select_item(month, f"Pilih {month}")
-                    if retry_success:
-                        bot._log("🧹 Sapu bersih semua bulan yang nyangkut (Retry)...")
-                        bot.uncheck_selected_rows(exclude=month)
+            elif month != current_active_month:
+                
+                bot.switch_to_main_page()
+                time.sleep(1.5)
 
-                bot.click_element(config.XPATH_ACTION_CONFIRM, "Confirm Transisi Bulan")
-                time.sleep(3.5)
-            
-            # Pada iterasi ini, Current Active Month berhasil dipindah
+                bot._log(f"🔄 Memulai proses penggantian: {current_active_month} -> {month}")
+                
+                # 1. Buka Filter (Pilih dulu yang baru agar pill tidak hilang)
+                bot.click_element(config.XPATH_CURRENT_SELECTION_MONTH, "Buka Filter Bulan")
+                time.sleep(2)
+                
+                # 2. Cari dan seleksi bulan baru
+                select_success = bot.search_and_select_item(month, f"Pilih {month}")
+                
+                if not select_success:
+                    bot._log(f"⚠️ Gagal menemukan {month}, mencoba menyegarkan pencarian...")
+                    # Fallback jika pencarian macet
+                    try:
+                        bot.driver.execute_script("arguments[0].value = '';", bot.driver.find_element(By.XPATH, config.XPATH_SEARCH_LISTBOX))
+                    except: pass
+                    bot.search_and_select_item(month, f"Retry Pilih {month}")
+
+                time.sleep(1)
+                
+                # 3. Unselect bulan lama
+                bot.search_and_unselect_item(current_active_month, f"Uncheck {current_active_month}")
+                time.sleep(1)
+
+                # 4. Approve / Confirm perubahan
+                bot.click_element(config.XPATH_ACTION_CONFIRM, "Confirm Perubahan Bulan")
+                bot._log(f"✅ Sekarang aktif pada bulan: {month}")
+                time.sleep(3)
+                
             current_active_month = month
             
             # --- B. PRIORITASKAN MISSING STATES ---
@@ -338,9 +332,9 @@ def main():
             futures.append(executor.submit(worker_routine, i, worker_tasks))
 
             # (Opsional) Pengaturan Start Barengan / Staggered
-            # Jika internet lag dan web gagal memuat, gunakan mode ini
+            # Jika internet lag dan beban menjadi sangat berat (karena fitur Points aktif), berikan delay lebih lama!
             if i < num_workers - 1:
-                stagger_delay = 5
+                stagger_delay = 10
                 print(f"  [WAIT] Menunggu {stagger_delay} detik agar beban awal web dan CPU stabil sebelum membuka browser berikutnya...\n")
                 time.sleep(stagger_delay)
 
