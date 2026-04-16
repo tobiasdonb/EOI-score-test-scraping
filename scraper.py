@@ -452,6 +452,12 @@ class SkillSelectScraper:
             # Membaca file Excel mentah yang baru didownload
             df = pd.read_excel(latest_file)
             
+            # Standardisasi nama kolom State bawaan Qlik ke 'Nominated State'
+            if 'State' in df.columns:
+                df.rename(columns={'State': 'Nominated State'}, inplace=True)
+            elif 'Nominating State' in df.columns:
+                df.rename(columns={'Nominating State': 'Nominated State'}, inplace=True)
+            
             if state_name:
                 df['Nominated State'] = state_name
             if english_score:
